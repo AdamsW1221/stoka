@@ -1,4 +1,4 @@
-const CACHE_NAME = "stoka-pwa-cache-v1";
+const CACHE_NAME = "stoka-pwa-cache-v2";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",

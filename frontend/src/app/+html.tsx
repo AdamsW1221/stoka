@@ -30,10 +30,10 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="format-detection" content="telephone=no" />
 
         {/* Manifiesto Web App e Iconos */}
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" type="image/png" href="/favicon.png" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.json?v=2" />
+        <link rel="icon" type="image/png" href="/favicon.png?v=2" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
 
         <ScrollViewStyleReset />
 
