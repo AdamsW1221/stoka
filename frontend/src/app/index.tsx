@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  Fingerprint,
   EnvelopeSimple,
   LockSimple,
   Buildings,
@@ -29,7 +28,6 @@ import {
 
 import { colors } from "@/theme/tokens";
 import { OtpInput } from "@/components/auth/OtpInput";
-import { BiometricsService, BiometricStatus } from "@/services/biometrics";
 import { SecureStorageService, StorageKeys } from "@/services/storage";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 import { ApiClient } from "@/services/apiClient";
@@ -56,13 +54,8 @@ export default function AuthScreen() {
   const [otpCooldown, setOtpCooldown] = useState<number>(60);
   const [otpError, setOtpError] = useState<string | null>(null);
 
-  // Estado biométrico
-  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
-  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(false);
-
-  // Inicialización de biometría y sesión previa
+  // Inicialización de sesión previa
   useEffect(() => {
-    checkBiometrics();
     loadStoredSession();
   }, []);
 
@@ -99,13 +92,6 @@ export default function AuthScreen() {
     return () => clearInterval(timer);
   }, [mode, otpCooldown]);
 
-  const checkBiometrics = async () => {
-    const status = await BiometricsService.checkAvailability();
-    setBiometricStatus(status);
-    const enabled = await BiometricsService.isBiometricEnabled();
-    setBiometricEnabled(enabled);
-  };
-
   const loadStoredSession = async () => {
     const savedEmail = await SecureStorageService.getItem(StorageKeys.SAVED_EMAIL);
     if (savedEmail) {
@@ -134,10 +120,6 @@ export default function AuthScreen() {
         setOrganizationName(res.tenant.name);
       }
       setIsAuthenticated(true);
-
-      if (biometricStatus?.isAvailable && !biometricEnabled) {
-        promptEnableBiometrics();
-      }
     } catch (apiError: any) {
       console.warn("API Login falló o backend desconectado:", apiError.message);
       Alert.alert(
@@ -265,65 +247,6 @@ export default function AuthScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Desbloqueo Biométrico (Huella / Face ID) con aislamiento Multi-Tenant por dispositivo/usuario
-  const handleBiometricUnlock = async () => {
-    if (!biometricStatus?.isAvailable) {
-      Alert.alert(
-        "Biometría no disponible",
-        "Tu dispositivo no tiene huella o rostro configurado."
-      );
-      return;
-    }
-
-    const success = await BiometricsService.authenticate(
-      `Desbloquear Stoka con ${biometricStatus.biometryName}`
-    );
-
-    if (!success) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Si el usuario escribió un correo personal en la caja de texto, vincularlo a su huella
-      if (email && email.includes("@") && email.toLowerCase() !== "admin@stoka.app") {
-        await SecureStorageService.setItem(StorageKeys.BIOMETRIC_USER_EMAIL, email.trim());
-      }
-
-      const res = await ApiClient.auth.biometricLogin();
-      if (res.tenant?.name) {
-        setOrganizationName(res.tenant.name);
-      }
-      setIsAuthenticated(true);
-    } catch (err: any) {
-      console.warn("[BiometricAuth] Error autenticando tenant biométrico:", err.message);
-      Alert.alert(
-        "Error de Conexión Biométrica",
-        err.message || "No se pudo sincronizar tu sesión biométrica con el servidor."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Configuración de biometría tras primer login
-  const promptEnableBiometrics = () => {
-    Alert.alert(
-      `Activar ${biometricStatus?.biometryName}`,
-      `¿Deseas activar el acceso rápido con ${biometricStatus?.biometryName} para tus próximos inicios de sesión?`,
-      [
-        { text: "Ahora no", style: "cancel" },
-        {
-          text: "Activar",
-          onPress: async () => {
-            await BiometricsService.setBiometricEnabled(true);
-            setBiometricEnabled(true);
-          },
-        },
-      ]
-    );
   };
 
   // Inicio de Sesión con Google
@@ -696,27 +619,6 @@ export default function AuthScreen() {
                   </>
                 )}
               </TouchableOpacity>
-
-              {/* Botón de Desbloqueo Biométrico (Huella o Face ID) */}
-              {mode === "LOGIN" && biometricStatus?.isAvailable && (
-                <TouchableOpacity
-                  onPress={handleBiometricUnlock}
-                  style={{
-                    backgroundColor: colors.background.DEFAULT,
-                    borderColor: colors.primary.DEFAULT,
-                  }}
-                  activeOpacity={0.8}
-                  className="w-full py-3.5 rounded-2xl items-center justify-center flex-row gap-2.5 border border-[#FF8000]/60 mb-4"
-                >
-                  <Fingerprint size={24} color={colors.primary.DEFAULT} weight="duotone" />
-                  <Text
-                    style={{ color: colors.text.primary }}
-                    className="font-bold text-sm"
-                  >
-                    Desbloquear con {biometricStatus.biometryName}
-                  </Text>
-                </TouchableOpacity>
-              )}
 
               {/* Separador "O continuar con" */}
               <View className="flex-row items-center my-4">

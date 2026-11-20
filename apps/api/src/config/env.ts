@@ -18,7 +18,9 @@ const envSchema = z.object({
   REFRESH_TOKEN_SECRET: z.string().min(16).default("super_secret_refresh_key_stoka_2026"),
 
   // Google OAuth
-  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_ID: z
+    .string()
+    .default("957967377042-43prhumdo6iquul8ir79r1h5h40earl9.apps.googleusercontent.com"),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_ANDROID_CLIENT_ID: z.string().optional(),
   GOOGLE_IOS_CLIENT_ID: z.string().optional(),
