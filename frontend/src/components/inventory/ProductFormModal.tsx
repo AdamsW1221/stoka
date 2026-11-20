@@ -38,6 +38,76 @@ interface ProductFormModalProps {
 const DEFAULT_PLACEHOLDER_IMAGE =
   "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400&auto=format&fit=crop&q=80";
 
+/**
+ * En Web/PWA (Safari en iPhone y Chrome en Android), captura una imagen desde la galería o cámara nativa
+ * y la comprime en un <canvas> a un Data URL JPEG ligero (base64) para que persista en PostgreSQL
+ * sin depender de URLs blob: temporales.
+ */
+function pickWebImageAsBase64(useCamera: boolean): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") {
+      resolve(null);
+      return;
+    }
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    if (useCamera) {
+      input.setAttribute("capture", "environment");
+    }
+
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const rawDataUrl = reader.result as string;
+        const img = new window.Image();
+        img.onload = () => {
+          try {
+            const MAX_SIZE = 600;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height && width > MAX_SIZE) {
+              height = Math.round((height * MAX_SIZE) / width);
+              width = MAX_SIZE;
+            } else if (height >= width && height > MAX_SIZE) {
+              width = Math.round((width * MAX_SIZE) / height);
+              height = MAX_SIZE;
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.78);
+              resolve(compressedDataUrl);
+              return;
+            }
+          } catch {
+            // Fallback a dataUrl original si falla canvas
+          }
+          resolve(rawDataUrl);
+        };
+        img.onerror = () => resolve(rawDataUrl);
+        img.src = rawDataUrl;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    };
+
+    input.click();
+  });
+}
+
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   visible,
   onClose,
@@ -71,8 +141,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     setImageUri(null);
   };
 
-  // Selector de imagen: Galería
+  // Selector de imagen: Galería (compatible con iOS Safari PWA, Android Chrome PWA y App Nativa)
   const pickFromGallery = async () => {
+    if (Platform.OS === "web") {
+      const dataUrl = await pickWebImageAsBase64(false);
+      if (dataUrl) setImageUri(dataUrl);
+      return;
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permiso Requerido", "Necesitamos acceso a tus fotos para adjuntar la imagen.");
@@ -80,19 +156,27 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.7,
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      setImageUri(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
     }
   };
 
-  // Selector de imagen: Cámara
+  // Selector de imagen: Cámara (compatible con iPhone Safari PWA capture="environment", Android y Nativo)
   const takeWithCamera = async () => {
+    if (Platform.OS === "web") {
+      const dataUrl = await pickWebImageAsBase64(true);
+      if (dataUrl) setImageUri(dataUrl);
+      return;
+    }
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permiso Requerido", "Necesitamos acceso a la cámara para tomar la fotografía.");
@@ -102,11 +186,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.7,
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      setImageUri(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
     }
   };
 
@@ -137,7 +223,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         stock: parsedStock,
         price: parsedPrice,
         image_url: imageUri || DEFAULT_PLACEHOLDER_IMAGE,
-        min_stock_threshold: 5,
+        min_stock_threshold: initialProduct?.min_stock_threshold ?? 5,
       });
       onClose();
     } finally {

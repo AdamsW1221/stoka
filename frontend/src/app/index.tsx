@@ -34,11 +34,13 @@ import { SecureStorageService, StorageKeys } from "@/services/storage";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 import { ApiClient } from "@/services/apiClient";
 import { GoogleAuthService, initGoogleWebButton } from "@/services/googleAuth";
+import { PwaInstallBanner, PwaInstallModal } from "@/components/pwa/PwaInstallModal";
 
 type AuthMode = "LOGIN" | "REGISTER" | "OTP_VERIFY";
 
 export default function AuthScreen() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isPwaModalOpen, setIsPwaModalOpen] = useState<boolean>(false);
   const [mode, setMode] = useState<AuthMode>("LOGIN");
   const [loading, setLoading] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -409,6 +411,9 @@ export default function AuthScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Apartado PWA: Instalación directa para iPhone (iOS) y Android */}
+          <PwaInstallBanner onOpenModal={() => setIsPwaModalOpen(true)} />
+
           {/* Selector de Pestañas: Iniciar Sesión / Registro */}
           {mode !== "OTP_VERIFY" && (
             <View
@@ -749,6 +754,12 @@ export default function AuthScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal del Apartado PWA (iOS & Android) */}
+      <PwaInstallModal
+        visible={isPwaModalOpen}
+        onClose={() => setIsPwaModalOpen(false)}
+      />
     </SafeAreaView>
   );
 }

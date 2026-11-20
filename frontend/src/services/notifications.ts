@@ -26,11 +26,26 @@ if (!isExpoGo && Platform.OS !== "web") {
 
 export const NotificationsService = {
   /**
-   * Solicita permisos para notificaciones
+   * Solicita permisos para notificaciones (Nativas o Web Notifications en PWA Android/iOS 16.4+)
    */
   async requestPermissions(): Promise<boolean> {
-    if (isExpoGo || Platform.OS === "web" || !NotificationsModule) {
-      return true; // En Expo Go se utiliza notificación in-app nativa
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if ("Notification" in window) {
+        try {
+          if (Notification.permission === "granted") return true;
+          if (Notification.permission !== "denied") {
+            const permission = await Notification.requestPermission();
+            return permission === "granted";
+          }
+        } catch {
+          // Ignorar en navegadores que restringen requestPermission fuera de un gesto directo
+        }
+      }
+      return true;
+    }
+
+    if (isExpoGo || !NotificationsModule) {
+      return true;
     }
 
     try {
@@ -51,14 +66,41 @@ export const NotificationsService = {
 
   /**
    * Dispara una alerta de stock crítico (< 5 unidades).
-   * En Expo Go utiliza una alerta modal de alta visibilidad, y en builds de desarrollo/producción
-   * dispara la notificación push local del sistema operativo.
+   * En Web/PWA (iOS y Android) dispara tanto la notificación del Service Worker / navegador
+   * como la alerta visual dentro de la aplicación.
    */
   async triggerLowStockAlert(productName: string, currentStock: number): Promise<void> {
     const title = "⚠️ Alerta de Stock Bajo - Stoka";
     const body = `El producto "${productName}" está por agotarse. Quedan solo ${currentStock} unidad(es) disponible(s).`;
 
-    if (isExpoGo || Platform.OS === "web" || !NotificationsModule) {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      try {
+        if ("Notification" in window && Notification.permission === "granted") {
+          if ("serviceWorker" in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg && typeof reg.showNotification === "function") {
+              await reg.showNotification(title, {
+                body,
+                icon: "/icon-192.png",
+                badge: "/icon-192.png",
+                tag: `low-stock-${productName}`,
+              });
+            } else {
+              new Notification(title, { body, icon: "/icon-192.png" });
+            }
+          } else {
+            new Notification(title, { body, icon: "/icon-192.png" });
+          }
+        }
+      } catch (err) {
+        console.warn("[NotificationsService] Web Notification fallback:", err);
+      }
+
+      Alert.alert(title, body, [{ text: "Revisar Stock", style: "default" }]);
+      return;
+    }
+
+    if (isExpoGo || !NotificationsModule) {
       Alert.alert(title, body, [{ text: "Revisar Stock", style: "default" }]);
       return;
     }

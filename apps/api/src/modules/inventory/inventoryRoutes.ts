@@ -131,6 +131,63 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // 3.5 EDITAR MERCANCÍA EXISTENTE
+  fastify.put("/products/:id", async (request: FastifyRequest, reply: FastifyReply) => {
+    const paramsSchema = z.object({ id: z.string().uuid() });
+    const updateSchema = z.object({
+      name: z.string().min(1, "El nombre es requerido"),
+      description: z.string().optional().default(""),
+      image_url: z.string().optional().nullable(),
+      stock: z.number().int().min(0, "El stock no puede ser negativo"),
+      price: z.number().min(0, "El precio no puede ser negativo"),
+      min_stock_threshold: z.number().int().default(5),
+    });
+
+    const { id } = paramsSchema.parse(request.params);
+    const body = updateSchema.parse(request.body);
+    const { tenantId, userId } = request.user;
+
+    return withTenantContext(tenantId, async (client) => {
+      const permRes = await client.query(
+        "SELECT can_edit_products FROM user_permissions WHERE user_id = $1 AND tenant_id = $2;",
+        [userId, tenantId]
+      );
+      if (permRes.rows.length === 0 || !permRes.rows[0].can_edit_products) {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: "Forbidden",
+          message: "No tienes permiso para editar productos (can_edit_products requerido).",
+        });
+      }
+
+      const updatedRes = await client.query(
+        `UPDATE products
+         SET name = $1, description = $2, image_url = $3, stock = $4, price = $5, min_stock_threshold = $6, updated_at = NOW()
+         WHERE id = $7 AND tenant_id = $8
+         RETURNING *;`,
+        [
+          body.name,
+          body.description,
+          body.image_url,
+          body.stock,
+          body.price,
+          body.min_stock_threshold,
+          id,
+          tenantId,
+        ]
+      );
+
+      if (updatedRes.rows.length === 0) {
+        return reply.status(404).send({
+          statusCode: 404,
+          message: "Producto no encontrado en esta organización.",
+        });
+      }
+
+      return reply.send({ product: updatedRes.rows[0] });
+    });
+  });
+
   // 4. AJUSTE RÁPIDO DE STOCK (+ / -)
   fastify.patch("/products/:id/stock", async (request: FastifyRequest, reply: FastifyReply) => {
     const paramsSchema = z.object({ id: z.string().uuid() });

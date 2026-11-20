@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "Stoka - Inventario Pro",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.stoka.app",
       "icon": "./assets/expo.icon"
@@ -22,7 +22,15 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Stoka - Gestión de Inventario Pro",
+      "shortName": "Stoka",
+      "lang": "es",
+      "scope": "/",
+      "themeColor": "#192230",
+      "backgroundColor": "#192230",
+      "display": "standalone",
+      "orientation": "portrait"
     },
     "plugins": [
       "expo-router",

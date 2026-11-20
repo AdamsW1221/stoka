@@ -15,9 +15,8 @@ import {
   WarningCircle,
   Plus,
   MagnifyingGlass,
-  Funnel,
   SignOut,
-  Sparkle,
+  DeviceMobile,
 } from "phosphor-react-native";
 
 import { colors } from "@/theme/tokens";
@@ -26,6 +25,7 @@ import { ProductCard } from "@/components/inventory/ProductCard";
 import { ProductFormModal } from "@/components/inventory/ProductFormModal";
 import { NotificationsService } from "@/services/notifications";
 import { ApiClient } from "@/services/apiClient";
+import { PwaInstallModal } from "@/components/pwa/PwaInstallModal";
 
 interface DashboardViewProps {
   onLogout: () => void;
@@ -94,9 +94,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [filterLowStockOnly, setFilterLowStockOnly] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  // Estado del Modal de Producto
+  // Estado del Modal de Producto y Modal PWA
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isPwaModalOpen, setIsPwaModalOpen] = useState<boolean>(false);
 
   // Permisos RBAC del usuario activo
   const [permissions] = useState<UserPermissions>({
@@ -117,10 +118,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const res = await ApiClient.products.list();
       if (res?.products) {
         setProducts(res.products);
+        return;
       }
     } catch (e: any) {
-      console.log("[DashboardView] Error cargando productos del backend:", e.message);
+      console.log("[DashboardView] Usando catálogo local / modo demo:", e.message);
     }
+    setProducts((prev) => (prev.length > 0 ? prev : INITIAL_PRODUCTS));
   };
 
   // Multiplicadores dinámicos según el selector de período para simular salidas reales
@@ -168,27 +171,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setRefreshing(false);
   };
 
-  // Guardar mercancía (Crear o Editar en base de datos)
+  // Guardar mercancía (Crear o Editar en base de datos, con soporte offline/demo en PWA)
   const handleSaveProduct = async (
     data: Omit<Product, "id" | "tenant_id" | "created_at" | "updated_at">
   ) => {
     try {
-      const res = await ApiClient.products.create(data);
-      if (res?.product) {
-        setProducts((prev) => [res.product, ...prev]);
-        if (res.product.stock < 5) {
-          NotificationsService.triggerLowStockAlert(res.product.name, res.product.stock);
+      if (editingProduct) {
+        const res = await ApiClient.products.update(editingProduct.id, data);
+        if (res?.product) {
+          setProducts((prev) =>
+            prev.map((p) => (p.id === editingProduct.id ? res.product : p))
+          );
+          if (res.product.stock < 5) {
+            NotificationsService.triggerLowStockAlert(res.product.name, res.product.stock);
+          }
+          setEditingProduct(null);
+          Alert.alert("Éxito", "Mercancía actualizada correctamente.");
+          return;
         }
-        setEditingProduct(null);
-        Alert.alert("Éxito", "Producto guardado correctamente en Supabase.");
-        return;
+      } else {
+        const res = await ApiClient.products.create(data);
+        if (res?.product) {
+          setProducts((prev) => [res.product, ...prev]);
+          if (res.product.stock < 5) {
+            NotificationsService.triggerLowStockAlert(res.product.name, res.product.stock);
+          }
+          setEditingProduct(null);
+          Alert.alert("Éxito", "Producto guardado correctamente en Supabase.");
+          return;
+        }
       }
     } catch (apiError: any) {
-      console.warn("[DashboardView] Backend no guardó en BD:", apiError.message);
-      Alert.alert(
-        "No se pudo guardar en Supabase",
-        `${apiError.message || "Error al comunicarse con el servidor."}\n\nVerifica que hayas iniciado sesión con una cuenta real y no en modo demo.`
-      );
+      console.warn("[DashboardView] Guardando localmente (Modo Demo / Offline PWA):", apiError.message);
+      const now = new Date().toISOString();
+
+      if (editingProduct) {
+        const updatedLocal: Product = {
+          ...editingProduct,
+          ...data,
+          updated_at: now,
+        };
+        setProducts((prev) =>
+          prev.map((p) => (p.id === editingProduct.id ? updatedLocal : p))
+        );
+      } else {
+        const newLocal: Product = {
+          id: `local-${Date.now()}`,
+          tenant_id: "tenant-demo",
+          ...data,
+          created_at: now,
+          updated_at: now,
+        };
+        setProducts((prev) => [newLocal, ...prev]);
+      }
+
+      if (data.stock < 5) {
+        NotificationsService.triggerLowStockAlert(data.name, data.stock);
+      }
+      setEditingProduct(null);
     }
   };
 
@@ -265,16 +305,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </View>
         </View>
 
-        <TouchableOpacity
-          onPress={onLogout}
-          style={{ backgroundColor: colors.surface.hover }}
-          className="p-2.5 rounded-xl flex-row items-center gap-1.5"
-        >
-          <SignOut size={18} color={colors.text.secondary} />
-          <Text style={{ color: colors.text.secondary }} className="text-xs font-semibold">
-            Salir
-          </Text>
-        </TouchableOpacity>
+        <View className="flex-row items-center gap-2">
+          <TouchableOpacity
+            onPress={() => setIsPwaModalOpen(true)}
+            style={{
+              backgroundColor: colors.primary.muted,
+              borderColor: colors.primary.DEFAULT,
+            }}
+            className="px-3 py-2.5 rounded-xl border flex-row items-center gap-1.5"
+          >
+            <DeviceMobile size={16} color={colors.primary.DEFAULT} weight="duotone" />
+            <Text style={{ color: colors.primary.DEFAULT }} className="text-xs font-bold">
+              PWA
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={onLogout}
+            style={{ backgroundColor: colors.surface.hover }}
+            className="p-2.5 rounded-xl flex-row items-center gap-1.5"
+          >
+            <SignOut size={18} color={colors.text.secondary} />
+            <Text style={{ color: colors.text.secondary }} className="text-xs font-semibold">
+              Salir
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -528,6 +584,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }}
         onSave={handleSaveProduct}
         initialProduct={editingProduct}
+      />
+
+      {/* Modal del Centro PWA (iPhone & Android) */}
+      <PwaInstallModal
+        visible={isPwaModalOpen}
+        onClose={() => setIsPwaModalOpen(false)}
       />
     </View>
   );

@@ -3,21 +3,39 @@ import Constants from "expo-constants";
 import { SecureStorageService, StorageKeys } from "./storage";
 import { Product, PeriodFilter, DashboardMetrics } from "@/types/inventory";
 
-// Extraer dinámicamente la IP de la máquina anfitriona desde Expo Go, o usar la IP de la red Wi-Fi actual
+// Extraer dinámicamente la IP de la máquina anfitriona desde Expo Go, o desde window.location.hostname en Web/PWA
 const hostUri = Constants.expoConfig?.hostUri || "";
 const dynamicHost = hostUri.split(":")[0];
 const DEV_MACHINE_IP = dynamicHost || "192.168.2.213";
 
-export const API_BASE_URL =
-  Platform.OS === "web"
-    ? "http://127.0.0.1:4000/api/v1"
-    : `http://${DEV_MACHINE_IP}:4000/api/v1`;
+function resolveApiBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
 
-interface ApiResponse<T> {
-  success?: boolean;
-  data?: T;
-  message?: string;
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined" && window.location?.hostname) {
+      const { hostname, origin } = window.location;
+      const isLocalOrLan =
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        /^192\.168\./.test(hostname) ||
+        /^10\./.test(hostname) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+
+      if (isLocalOrLan) {
+        return `http://${hostname}:4000/api/v1`;
+      }
+      // En producción (Vercel / dominio HTTPS), consume la API serverless en el mismo dominio
+      return `${origin}/api/v1`;
+    }
+    return "http://127.0.0.1:4000/api/v1";
+  }
+
+  return `http://${DEV_MACHINE_IP}:4000/api/v1`;
 }
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = await SecureStorageService.getItem(StorageKeys.AUTH_TOKEN);
@@ -138,6 +156,16 @@ export const ApiClient = {
     async create(productData: Omit<Product, "id" | "tenant_id" | "created_at" | "updated_at">) {
       return request<{ product: Product }>("/products", {
         method: "POST",
+        body: JSON.stringify(productData),
+      });
+    },
+
+    async update(
+      id: string,
+      productData: Omit<Product, "id" | "tenant_id" | "created_at" | "updated_at">
+    ) {
+      return request<{ product: Product }>(`/products/${id}`, {
+        method: "PUT",
         body: JSON.stringify(productData),
       });
     },

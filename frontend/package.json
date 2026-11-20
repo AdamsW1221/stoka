@@ -46,6 +46,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "pwa": "expo start --web",
+    "pwa:build": "expo export -p web",
     "lint": "expo lint"
   },
   "private": true

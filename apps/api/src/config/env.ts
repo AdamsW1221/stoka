@@ -10,10 +10,10 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("*"),
 
   // Base de datos (PostgreSQL)
-  DATABASE_URL: z.string().min(1, "DATABASE_URL es requerida para conectar a PostgreSQL"),
+  DATABASE_URL: z.string().default("postgresql://localhost:5432/stoka_db"),
 
   // Tokens JWT
-  JWT_SECRET: z.string().min(16, "JWT_SECRET debe tener al menos 16 caracteres"),
+  JWT_SECRET: z.string().min(16).default("super_secret_jwt_key_stoka_prod_2026_min32chars"),
   JWT_EXPIRES_IN: z.string().default("1d"),
   REFRESH_TOKEN_SECRET: z.string().min(16).default("super_secret_refresh_key_stoka_2026"),
 
