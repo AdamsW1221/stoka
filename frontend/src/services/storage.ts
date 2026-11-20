@@ -9,7 +9,10 @@ export const StorageKeys = {
   AUTH_TOKEN: "stoka_auth_token",
   REFRESH_TOKEN: "stoka_refresh_token",
   USER_DATA: "stoka_user_data",
+  TENANT_DATA: "stoka_tenant_data",
   BIOMETRIC_ENABLED: "stoka_biometric_enabled",
+  BIOMETRIC_USER_EMAIL: "stoka_biometric_user_email",
+  DEVICE_ID: "stoka_device_unique_id",
   SAVED_EMAIL: "stoka_saved_email",
 } as const;
 
@@ -75,5 +78,21 @@ export const SecureStorageService = {
     await this.deleteItem(StorageKeys.AUTH_TOKEN);
     await this.deleteItem(StorageKeys.REFRESH_TOKEN);
     await this.deleteItem(StorageKeys.USER_DATA);
+    await this.deleteItem(StorageKeys.TENANT_DATA);
+  },
+
+  /**
+   * Obtiene o genera un identificador único persistente por dispositivo físico / navegador.
+   * Garantiza que el inicio de sesión biométrico cree y mantenga un Tenant aislado por dispositivo.
+   */
+  async getOrCreateDeviceId(): Promise<string> {
+    const existing = await this.getItem(StorageKeys.DEVICE_ID);
+    if (existing && existing.length >= 12) {
+      return existing;
+    }
+    const randomPart = () => Math.random().toString(36).substring(2, 10);
+    const newDeviceId = `dev-${Date.now().toString(36)}-${randomPart()}-${randomPart()}`;
+    await this.setItem(StorageKeys.DEVICE_ID, newDeviceId);
+    return newDeviceId;
   },
 };

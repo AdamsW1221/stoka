@@ -1,15 +1,16 @@
 {
   "version": 2,
+  "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api"
     },
     {
       "source": "/health",
-      "destination": "/api/index.ts"
+      "destination": "/api"
     },
     {
       "source": "/((?!api/|health|manifest\\.json|sw\\.js|icon-.*|apple-touch-icon\\.png|favicon\\.png|_expo/|assets/).*)",

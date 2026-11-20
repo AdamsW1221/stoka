@@ -111,6 +111,12 @@ export default function AuthScreen() {
     if (savedEmail) {
       setEmail(savedEmail);
     }
+    const savedTenant = await SecureStorageService.getObject<{ name?: string }>(
+      StorageKeys.TENANT_DATA
+    );
+    if (savedTenant?.name) {
+      setOrganizationName(savedTenant.name);
+    }
   };
 
   // Manejar Login clásico (Email + Contraseña)
@@ -124,6 +130,9 @@ export default function AuthScreen() {
     try {
       const res = await ApiClient.auth.login({ email, password });
       await SecureStorageService.setItem(StorageKeys.SAVED_EMAIL, email);
+      if (res.tenant?.name) {
+        setOrganizationName(res.tenant.name);
+      }
       setIsAuthenticated(true);
 
       if (biometricStatus?.isAvailable && !biometricEnabled) {
@@ -258,7 +267,7 @@ export default function AuthScreen() {
     }
   };
 
-  // Desbloqueo Biométrico (Huella / Face ID)
+  // Desbloqueo Biométrico (Huella / Face ID) con aislamiento Multi-Tenant por dispositivo/usuario
   const handleBiometricUnlock = async () => {
     if (!biometricStatus?.isAvailable) {
       Alert.alert(
@@ -272,8 +281,30 @@ export default function AuthScreen() {
       `Desbloquear Stoka con ${biometricStatus.biometryName}`
     );
 
-    if (success) {
+    if (!success) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Si el usuario escribió un correo personal en la caja de texto, vincularlo a su huella
+      if (email && email.includes("@") && email.toLowerCase() !== "admin@stoka.app") {
+        await SecureStorageService.setItem(StorageKeys.BIOMETRIC_USER_EMAIL, email.trim());
+      }
+
+      const res = await ApiClient.auth.biometricLogin();
+      if (res.tenant?.name) {
+        setOrganizationName(res.tenant.name);
+      }
       setIsAuthenticated(true);
+    } catch (err: any) {
+      console.warn("[BiometricAuth] Error autenticando tenant biométrico:", err.message);
+      Alert.alert(
+        "Error de Conexión Biométrica",
+        err.message || "No se pudo sincronizar tu sesión biométrica con el servidor."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 

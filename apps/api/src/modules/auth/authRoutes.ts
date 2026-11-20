@@ -419,4 +419,111 @@ export async function authRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  // 5. AUTENTICACIÓN BIOMÉTRICA MULTI-TENANT POR DISPOSITIVO / USUARIO VINCULADO
+  fastify.post("/biometric", async (request: FastifyRequest, reply: FastifyReply) => {
+    const biometricSchema = z.object({
+      deviceId: z.string().min(6, "El identificador del dispositivo es requerido"),
+      email: z.string().email().optional().nullable(),
+    });
+
+    const parseResult = biometricSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: "Bad Request",
+        message: parseResult.error.errors[0].message,
+      });
+    }
+
+    const { deviceId, email } = parseResult.data;
+
+    // Si el dispositivo tiene vinculado un correo personal (distinto a la cuenta demo compartida admin@stoka.app)
+    const targetEmail =
+      email && email.toLowerCase() !== "admin@stoka.app"
+        ? email.toLowerCase()
+        : `bio.${deviceId.toLowerCase().replace(/[^a-z0-9.-]/g, "")}@stoka.device`;
+
+    // Buscar si ya existe el usuario y su tenant aislado
+    const userRes = await query(
+      `SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.is_active,
+              t.name as tenant_name, t.slug as tenant_slug,
+              p.can_add_products, p.can_edit_products, p.can_delete_products, p.can_manage_users
+       FROM users u
+       JOIN tenants t ON t.id = u.tenant_id
+       LEFT JOIN user_permissions p ON p.user_id = u.id AND p.tenant_id = u.tenant_id
+       WHERE u.email = $1 LIMIT 1;`,
+      [targetEmail]
+    );
+
+    let user: any;
+    let tenant: any;
+
+    if (userRes.rows.length > 0) {
+      user = userRes.rows[0];
+      tenant = {
+        id: user.tenant_id,
+        name: user.tenant_name,
+        slug: user.tenant_slug,
+      };
+      user.permissions = {
+        can_add_products: user.can_add_products ?? true,
+        can_edit_products: user.can_edit_products ?? true,
+        can_delete_products: user.can_delete_products ?? true,
+        can_manage_users: user.can_manage_users ?? true,
+      };
+    } else {
+      // Crear un Tenant y Usuario 100% aislado para este dispositivo biométrico
+      const shortCode = deviceId.slice(-6).toUpperCase();
+      const orgName = `Inventario Biométrico #${shortCode}`;
+      const slug = `bio-tenant-${deviceId.toLowerCase().replace(/[^a-z0-9]/g, "-")}`.slice(0, 80);
+
+      const tenantInsert = await query(
+        `INSERT INTO tenants (name, slug) VALUES ($1, $2) RETURNING id, name, slug;`,
+        [orgName, slug]
+      );
+      tenant = tenantInsert.rows[0];
+
+      const userInsert = await query(
+        `INSERT INTO users (tenant_id, email, full_name, role, auth_provider)
+         VALUES ($1, $2, $3, 'admin', 'biometric')
+         RETURNING id, tenant_id, email, full_name, role;`,
+        [tenant.id, targetEmail, `Titular Biométrico (${shortCode})`]
+      );
+      user = userInsert.rows[0];
+
+      await query(
+        `INSERT INTO user_permissions (tenant_id, user_id, can_add_products, can_edit_products, can_delete_products, can_manage_users)
+         VALUES ($1, $2, TRUE, TRUE, TRUE, TRUE);`,
+        [tenant.id, user.id]
+      );
+
+      user.permissions = {
+        can_add_products: true,
+        can_edit_products: true,
+        can_delete_products: true,
+        can_manage_users: true,
+      };
+    }
+
+    const token = fastify.jwt.sign({
+      userId: user.id,
+      tenantId: tenant.id,
+      role: user.role,
+      email: user.email,
+    });
+
+    return reply.status(200).send({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        role: user.role,
+        permissions: user.permissions,
+      },
+      tenant,
+    });
+  });
 }

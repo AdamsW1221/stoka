@@ -94,6 +94,12 @@ export const ApiClient = {
       if (res.token) {
         await SecureStorageService.setItem(StorageKeys.AUTH_TOKEN, res.token);
         await SecureStorageService.setObject(StorageKeys.USER_DATA, res.user);
+        if (res.tenant) {
+          await SecureStorageService.setObject(StorageKeys.TENANT_DATA, res.tenant);
+        }
+        if (res.user?.email && res.user.email.toLowerCase() !== "admin@stoka.app") {
+          await SecureStorageService.setItem(StorageKeys.BIOMETRIC_USER_EMAIL, res.user.email);
+        }
       }
 
       return res;
@@ -113,6 +119,12 @@ export const ApiClient = {
       if (res.token) {
         await SecureStorageService.setItem(StorageKeys.AUTH_TOKEN, res.token);
         await SecureStorageService.setObject(StorageKeys.USER_DATA, res.user);
+        if (res.tenant) {
+          await SecureStorageService.setObject(StorageKeys.TENANT_DATA, res.tenant);
+        }
+        if (res.user?.email && res.user.email.toLowerCase() !== "admin@stoka.app") {
+          await SecureStorageService.setItem(StorageKeys.BIOMETRIC_USER_EMAIL, res.user.email);
+        }
       }
 
       return res;
@@ -132,6 +144,40 @@ export const ApiClient = {
       if (res.token) {
         await SecureStorageService.setItem(StorageKeys.AUTH_TOKEN, res.token);
         await SecureStorageService.setObject(StorageKeys.USER_DATA, res.user);
+        if (res.tenant) {
+          await SecureStorageService.setObject(StorageKeys.TENANT_DATA, res.tenant);
+        }
+        if (res.user?.email && res.user.email.toLowerCase() !== "admin@stoka.app") {
+          await SecureStorageService.setItem(StorageKeys.BIOMETRIC_USER_EMAIL, res.user.email);
+        }
+      }
+
+      return res;
+    },
+
+    async biometricLogin() {
+      const deviceId = await SecureStorageService.getOrCreateDeviceId();
+      const linkedEmail = await SecureStorageService.getItem(StorageKeys.BIOMETRIC_USER_EMAIL);
+
+      const res = await request<{
+        success: boolean;
+        token: string;
+        user: any;
+        tenant: any;
+      }>("/auth/biometric", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId,
+          email: linkedEmail || undefined,
+        }),
+      });
+
+      if (res.token) {
+        await SecureStorageService.setItem(StorageKeys.AUTH_TOKEN, res.token);
+        await SecureStorageService.setObject(StorageKeys.USER_DATA, res.user);
+        if (res.tenant) {
+          await SecureStorageService.setObject(StorageKeys.TENANT_DATA, res.tenant);
+        }
       }
 
       return res;

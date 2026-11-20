@@ -116,14 +116,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const loadProducts = async () => {
     try {
       const res = await ApiClient.products.list();
-      if (res?.products) {
+      if (res && Array.isArray(res.products)) {
         setProducts(res.products);
         return;
       }
     } catch (e: any) {
       console.log("[DashboardView] Usando catálogo local / modo demo:", e.message);
+      setProducts((prev) => (prev.length > 0 ? prev : INITIAL_PRODUCTS));
     }
-    setProducts((prev) => (prev.length > 0 ? prev : INITIAL_PRODUCTS));
   };
 
   // Multiplicadores dinámicos según el selector de período para simular salidas reales
