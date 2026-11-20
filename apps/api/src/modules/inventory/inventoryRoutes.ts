@@ -160,6 +160,18 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         });
       }
 
+      const prevRes = await client.query(
+        "SELECT stock, price FROM products WHERE id = $1 AND tenant_id = $2;",
+        [id, tenantId]
+      );
+      if (prevRes.rows.length === 0) {
+        return reply.status(404).send({
+          statusCode: 404,
+          message: "Producto no encontrado en esta organización.",
+        });
+      }
+      const prevProduct = prevRes.rows[0];
+
       const updatedRes = await client.query(
         `UPDATE products
          SET name = $1, description = $2, image_url = $3, stock = $4, price = $5, min_stock_threshold = $6, updated_at = NOW()
@@ -177,14 +189,19 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         ]
       );
 
-      if (updatedRes.rows.length === 0) {
-        return reply.status(404).send({
-          statusCode: 404,
-          message: "Producto no encontrado en esta organización.",
-        });
+      const updatedProduct = updatedRes.rows[0];
+      const stockDiff = body.stock - Number(prevProduct.stock);
+
+      if (stockDiff !== 0) {
+        const movementType = stockDiff > 0 ? "IN" : "OUT";
+        await client.query(
+          `INSERT INTO inventory_movements (tenant_id, product_id, type, quantity, unit_price, reason, created_by)
+           VALUES ($1, $2, $3, $4, $5, 'Ajuste desde edición de producto', $6);`,
+          [tenantId, id, movementType, Math.abs(stockDiff), body.price, userId]
+        );
       }
 
-      return reply.send({ product: updatedRes.rows[0] });
+      return reply.send({ product: updatedProduct });
     });
   });
 

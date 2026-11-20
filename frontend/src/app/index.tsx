@@ -207,7 +207,7 @@ export default function AuthScreen() {
       setOtpError(null);
       Alert.alert(
         "¡Cuenta Verificada!",
-        `La organización "${organizationName}" y tu cuenta han sido creadas exitosamente en PostgreSQL.`,
+        `La organización "${organizationName}" y tu cuenta han sido creadas exitosamente.`,
         [
           {
             text: "Entrar al Dashboard",

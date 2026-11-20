@@ -90,6 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("month");
+  const [consumedValueInPeriod, setConsumedValueInPeriod] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterLowStockOnly, setFilterLowStockOnly] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -113,11 +114,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     loadProducts();
   }, []);
 
+  // Cargar métricas reales de salidas (movimientos OUT) según el período seleccionado
+  useEffect(() => {
+    loadDashboardMetrics(selectedPeriod);
+  }, [selectedPeriod]);
+
+  const loadDashboardMetrics = async (period: PeriodFilter) => {
+    try {
+      const res = await ApiClient.dashboard.getMetrics(period);
+      if (res && typeof res.consumedValueInPeriod === "number") {
+        setConsumedValueInPeriod(res.consumedValueInPeriod);
+      }
+    } catch (e: any) {
+      console.log("[DashboardView] Métricas en modo local:", e.message);
+    }
+  };
+
   const loadProducts = async () => {
     try {
       const res = await ApiClient.products.list();
       if (res && Array.isArray(res.products)) {
         setProducts(res.products);
+        await loadDashboardMetrics(selectedPeriod);
         return;
       }
     } catch (e: any) {
@@ -126,15 +144,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  // Multiplicadores dinámicos según el selector de período para simular salidas reales
-  const periodMultiplier: Record<PeriodFilter, number> = {
-    today: 0.05,
-    week: 0.22,
-    month: 0.65,
-    year: 2.4,
-  };
-
-  // Cálculo de Métricas del Dashboard
+  // Cálculo de Métricas Reales del Dashboard
   const metrics: DashboardMetrics = useMemo(() => {
     const totalCount = products.length;
     const totalValue = products.reduce(
@@ -142,15 +152,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       0
     );
     const lowCount = products.filter((p) => Number(p.stock) < Number(p.min_stock_threshold)).length;
-    const consumedValue = totalValue * periodMultiplier[selectedPeriod];
 
     return {
       totalProductsCount: totalCount,
       totalInventoryValue: totalValue,
-      consumedValueInPeriod: consumedValue,
+      consumedValueInPeriod,
       lowStockCount: lowCount,
     };
-  }, [products, selectedPeriod]);
+  }, [products, consumedValueInPeriod]);
 
   // Filtrado y búsqueda de productos
   const filteredProducts = useMemo(() => {
@@ -186,7 +195,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             NotificationsService.triggerLowStockAlert(res.product.name, res.product.stock);
           }
           setEditingProduct(null);
-          Alert.alert("Éxito", "Mercancía actualizada correctamente.");
+          await loadDashboardMetrics(selectedPeriod);
+          Alert.alert("Éxito", "Producto actualizado correctamente.");
           return;
         }
       } else {
@@ -197,7 +207,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             NotificationsService.triggerLowStockAlert(res.product.name, res.product.stock);
           }
           setEditingProduct(null);
-          Alert.alert("Éxito", "Producto guardado correctamente en Supabase.");
+          await loadDashboardMetrics(selectedPeriod);
+          Alert.alert("Éxito", "Producto añadido correctamente.");
           return;
         }
       }
@@ -251,6 +262,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         if (res.product.stock < 5) {
           NotificationsService.triggerLowStockAlert(res.product.name, res.product.stock);
         }
+        await loadDashboardMetrics(selectedPeriod);
         return;
       }
     } catch (apiError: any) {
@@ -261,6 +273,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       prev.map((p) => {
         if (p.id === productId) {
           const newStock = Math.max(0, p.stock + delta);
+          const actualRemoved = p.stock - newStock;
+          if (actualRemoved > 0) {
+            setConsumedValueInPeriod((curr) => curr + actualRemoved * (Number(p.price) || 0));
+          }
           if (newStock < 5 && (p.stock >= 5 || delta < 0)) {
             NotificationsService.triggerLowStockAlert(p.name, newStock);
           }
