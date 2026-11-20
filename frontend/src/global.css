@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+input,
+textarea,
+select {
+  outline: none !important;
+  outline-width: 0 !important;
+  box-shadow: none !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none !important;
+  outline-width: 0 !important;
+  box-shadow: none !important;
+}

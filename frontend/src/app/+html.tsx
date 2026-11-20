@@ -62,6 +62,20 @@ export default function Root({ children }: PropsWithChildren) {
                   padding-right: env(safe-area-inset-right, 0px);
                 }
               }
+              /* Eliminar borde blanco (outline) del navegador al tocar cualquier input o textarea */
+              input, textarea, select {
+                outline: none !important;
+                outline-width: 0 !important;
+                outline-style: none !important;
+                box-shadow: none !important;
+              }
+              input:focus, textarea:focus, select:focus,
+              input:focus-visible, textarea:focus-visible, select:focus-visible {
+                outline: none !important;
+                outline-width: 0 !important;
+                outline-style: none !important;
+                box-shadow: none !important;
+              }
               /* Evitar que Safari en iPhone haga zoom automático al enfocar inputs */
               @media screen and (max-width: 768px) {
                 input, textarea, select {
