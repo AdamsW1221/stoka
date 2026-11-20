@@ -29,6 +29,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false, // Oculta la barra de título superior predeterminada
+          title: "Stoka - Inventario Pro",
         }}
       />
     </>

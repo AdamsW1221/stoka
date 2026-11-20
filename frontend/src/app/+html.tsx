@@ -12,9 +12,24 @@ export default function Root({ children }: PropsWithChildren) {
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
         />
 
-        <title>Stoka - Inventario Pro (iOS &amp; Android PWA)</title>
         <meta
           name="description"
+          content="Gestión inteligente de inventario y control multi-tenant para iPhone (iOS) y Android."
+        />
+
+        {/* Open Graph / WhatsApp / iMessage / Telegram Link Preview */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Stoka" />
+        <meta property="og:title" content="Stoka - Inventario Pro" />
+        <meta
+          property="og:description"
+          content="Gestión inteligente de inventario y control multi-tenant para iPhone (iOS) y Android."
+        />
+        <meta property="og:image" content="https://stoka-xi.vercel.app/icon-512.png?v=2" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Stoka - Inventario Pro" />
+        <meta
+          name="twitter:description"
           content="Gestión inteligente de inventario y control multi-tenant para iPhone (iOS) y Android."
         />
 
